@@ -1,9 +1,9 @@
 package org.disco.pojo;
 
 public class Output {
-    private String experimentId = "a";
-    private String treatmentId = "b";
-    private String segmentId = "c";
+    private String experimentId = "";
+    private String treatmentId = "";
+    private String segmentId = "";
     private Integer success = 0;
     private Integer failure = 0;
     public Output(){}

@@ -100,7 +100,7 @@ import java.util.regex.Pattern;
 public class Counter {
 
     static final String inputTopic = "input";
-    static final String outputTopic = "streams-wordcount-output";
+    static final String outputTopic = "output";
     private static final Logger LOG =   LoggerFactory.getLogger(Counter.class);
 
     /**
@@ -205,10 +205,13 @@ public class Counter {
 
         final KTable<String, Output> aggregatedEvent = incomingEvents
                 .mapValues((key, value) -> new Output(value))
-                .selectKey((k,v)-> v.getExperimentId() + "-"+ v.getSegmentId() + "-" + v.getTreatmentId())
+                .selectKey((k,v)-> v.getExperimentId() + "--"+ v.getSegmentId() + "--" + v.getTreatmentId())
                 .groupByKey(Grouped.with(Serdes.String(), outputSerde)).aggregate(
                         Output::new,
                         (k,v,agg) -> {
+                            agg.setExperimentId(v.getExperimentId());
+                            agg.setSegmentId(v.getSegmentId());
+                            agg.setTreatmentId(v.getTreatmentId());
                             agg.setSuccess(agg.getSuccess() + v.getSuccess());
                             agg.setFailure(agg.getFailure() + v.getFailure());
                             return agg;
