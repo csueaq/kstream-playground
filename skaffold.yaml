@@ -1,0 +1,23 @@
+apiVersion: skaffold/v2beta6
+kind: Config
+build:
+  artifacts:
+  - image: kstream-app
+    sync:
+      infer:
+      - "src/**"
+      - "build.gradle"
+  - image: kstream-test-app
+    custom:
+      dependencies:
+        dockerfile:
+          path: "tools/Dockerfile"
+      buildCommand: tools/tester.sh
+    sync:
+      infer:
+      - "tools/*"
+      - "scripts/tester/*"
+deploy:
+  kustomize:
+    paths:
+      - "deployments/kustomize/app"

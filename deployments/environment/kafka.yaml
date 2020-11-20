@@ -1,0 +1,17 @@
+replicas: 1
+persistence:
+  enabled: false
+
+topics:
+  - name: test.in
+    partitions: 50
+    replicationFactor: 1
+    reassignPartitions: false
+  - name: test.out
+    partitions: 50
+    replicationFactor: 1
+    reassignPartitions: false
+configurationOverrides:
+  "transaction.state.log.replication.factor": 1
+  "transaction.state.log.min.isr": 1
+  "offsets.topic.replication.factor": 1

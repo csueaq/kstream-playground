@@ -1,0 +1,28 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: kstream-test
+spec:
+  concurrencyPolicy: Forbid
+  schedule: "*/2 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - image: kstream-test-app
+              name: kstream-test-app
+              resources:
+                limits:
+                  cpu: 2
+                  memory: 1024Mi
+                requests:
+                  cpu: 250m
+                  memory: 16Mi
+              imagePullPolicy: Never # change to Always for real env
+              env:
+                - name: KAFKA_CNX_STRING
+                  value: kafka.default.svc.cluster.local:9092
+                - name: KAFKA_PRODUCING_TOPIC
+                  value: test.in

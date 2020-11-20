@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kstream-test
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      deployment: kstream-test
+  template:
+    metadata:
+      labels:
+        deployment: kstream-test
+    spec:
+      containers:
+      - name: kstream-test
+        image: kstream-app
+        envFrom:
+          - configMapRef:
+              name: kstream-test
