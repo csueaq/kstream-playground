@@ -1,0 +1,14 @@
+.git
+.coverage
+.coveragerc
+.gitignore
+README.md
+
+docker-compose.yaml
+.dockerignore
+
+.idea/
+
+deployments/
+
+tools/
