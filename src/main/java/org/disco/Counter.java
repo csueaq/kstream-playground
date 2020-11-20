@@ -8,8 +8,8 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.*;
-import org.disco.pojo.Event;
-import org.disco.pojo.Output;
+import org.disco.pojo.InEvent;
+import org.disco.pojo.OutEvent;
 import org.disco.serializer.JsonDeserializer;
 import org.disco.serializer.JsonSerializer;
 import org.slf4j.Logger;
@@ -99,8 +99,6 @@ import java.util.regex.Pattern;
  */
 public class Counter {
 
-    static final String inputTopic = "input";
-    static final String outputTopic = "output";
     private static final Logger LOG =   LoggerFactory.getLogger(Counter.class);
 
     /**
@@ -108,14 +106,16 @@ public class Counter {
      */
     public static void main(final String[] args) {
 
-        final String bootstrapServers = args.length > 0 ? args[0] : "localhost:9092";
+        final String bootstrapServers = System.getenv("KAFKA_CNX_STRING");
+        final String consumingTopic = System.getenv("KAFKA_CONSUMING_TOPIC");
+        final String producingTopic = System.getenv("KAFKA_PRODUCING_TOPIC");
 
         // Configure the Streams application.
         final Properties streamsConfiguration = getStreamsConfiguration(bootstrapServers);
 
         // Define the processing topology of the Streams application.
         final StreamsBuilder builder = new StreamsBuilder();
-        createWordCountStream(builder);
+        createDummyStream(builder, consumingTopic, producingTopic);
         final KafkaStreams streams = new KafkaStreams(builder.build(), streamsConfiguration);
 
         // Always (and unconditionally) clean local state prior to starting the processing topology.
@@ -128,7 +128,7 @@ public class Counter {
         // Thus in a production scenario you typically do not want to clean up always as we do here but rather only when it
         // is truly needed, i.e., only under certain conditions (e.g., the presence of a command line flag for your app).
         // See `ApplicationResetExample.java` for a production-like example.
-        streams.cleanUp();
+        // streams.cleanUp();
 
         LOG.info("Starting");
         // Now run the processing topology via `start()` to begin processing its input data.
@@ -152,8 +152,8 @@ public class Counter {
         final Properties streamsConfiguration = new Properties();
         // Give the Streams application a unique name.  The name must be unique in the Kafka cluster
         // against which the application is run.
-        streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, "wordcount-lambda-example");
-        streamsConfiguration.put(StreamsConfig.CLIENT_ID_CONFIG, "wordcount-lambda-example-client");
+        streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, "kstream-app");
+        streamsConfiguration.put(StreamsConfig.CLIENT_ID_CONFIG, "kstream-app");
         // Where to find Kafka broker(s).
         streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         // Specify default (de)serializers for record keys and for record values.
@@ -173,56 +173,53 @@ public class Counter {
      * Define the processing topology for Word Count.
      *
      * @param builder StreamsBuilder to use
+     * @param consumingTopic String to use
+     * @param producingTopic String to use
      */
-    static void createWordCountStream(final StreamsBuilder builder) {
+    static void createDummyStream(final StreamsBuilder builder, final String consumingTopic, final String producingTopic) {
 
         Map<String, Object> serdeProps = new HashMap<>();
 
-        final Deserializer<Event> eventDeserializer = new JsonDeserializer<>();
-        serdeProps.put("JsonPOJOClass", Event.class);
+        final Deserializer<InEvent> eventDeserializer = new JsonDeserializer<>();
+        serdeProps.put("JsonPOJOClass", InEvent.class);
         eventDeserializer.configure(serdeProps, false);
-        final Serializer<Event> eventSerializer = new JsonSerializer<>();
-        serdeProps.put("JsonPOJOClass", Event.class);
+        final Serializer<InEvent> eventSerializer = new JsonSerializer<>();
+        serdeProps.put("JsonPOJOClass", InEvent.class);
         eventSerializer.configure(serdeProps, false);
 
-        final Serde<Event> eventSerde = Serdes.serdeFrom(eventSerializer, eventDeserializer);
+        final Serde<InEvent> eventSerde = Serdes.serdeFrom(eventSerializer, eventDeserializer);
 
-        final Deserializer<Output> outputDeserializer = new JsonDeserializer<>();
-        serdeProps.put("JsonPOJOClass", Output.class);
+        final Deserializer<OutEvent> outputDeserializer = new JsonDeserializer<>();
+        serdeProps.put("JsonPOJOClass", OutEvent.class);
         outputDeserializer.configure(serdeProps, false);
-        final Serializer<Output> outputSerializer = new JsonSerializer<>();
-        serdeProps.put("JsonPOJOClass", Output.class);
+        final Serializer<OutEvent> outputSerializer = new JsonSerializer<>();
+        serdeProps.put("JsonPOJOClass", OutEvent.class);
         outputSerializer.configure(serdeProps,false);
 
-        final Serde<Output> outputSerde = Serdes.serdeFrom(outputSerializer, outputDeserializer);
+        final Serde<OutEvent> outputSerde = Serdes.serdeFrom(outputSerializer, outputDeserializer);
 
 
         // Construct a `KStream` from the input topic "streams-plaintext-input", where message values
         // represent lines of text (for the sake of this example, we ignore whatever may be stored
         // in the message keys).  The default key and value serdes will be used.
-        final KStream<String, Event> incomingEvents = builder.stream(inputTopic, Consumed.with(Serdes.String(), eventSerde));
+        final KStream<String, InEvent> incomingEvents = builder.stream(consumingTopic, Consumed.with(Serdes.String(), eventSerde));
 
 
-        final KTable<String, Output> aggregatedEvent = incomingEvents
-                .mapValues((key, value) -> new Output(value))
-                .selectKey((k,v)-> v.getExperimentId() + "--"+ v.getSegmentId() + "--" + v.getTreatmentId())
+        final KTable<String, OutEvent> aggregatedEvent = incomingEvents
+                .mapValues((key, value) -> new OutEvent(value))
+                .selectKey((k,v)-> v.getId())
                 .groupByKey(Grouped.with(Serdes.String(), outputSerde)).aggregate(
-                        Output::new,
+                        OutEvent::new,
                         (k,v,agg) -> {
-                            agg.setExperimentId(v.getExperimentId());
-                            agg.setSegmentId(v.getSegmentId());
-                            agg.setTreatmentId(v.getTreatmentId());
-                            agg.setSuccess(agg.getSuccess() + v.getSuccess());
-                            agg.setFailure(agg.getFailure() + v.getFailure());
+                            agg.setId(v.getId());
+                            agg.setOne(agg.getOne() + v.getOne());
+                            agg.setZero(agg.getZero() + v.getZero());
                             return agg;
                         },
                         Materialized.with(Serdes.String(), outputSerde)
                 );
 
-
-
-        // Write the `KTable<String, Output>` to the output topic.
-        aggregatedEvent.toStream().to(outputTopic, Produced.with(Serdes.String(), outputSerde));
+        // Write the `KTable<String, OutEvent>` to the output topic.
+        aggregatedEvent.toStream().to(producingTopic, Produced.with(Serdes.String(), outputSerde));
     }
-
 }
